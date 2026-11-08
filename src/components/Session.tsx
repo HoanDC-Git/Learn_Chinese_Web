@@ -13,7 +13,8 @@ const HANZI_FLOOR = 28;
 interface SessionProps {
   cards: SyncCard[];
   order: number[]; // index vào cards, đã shuffle
-  onExit: () => void;
+  /** Ấn X giữa phiên: App hiện dialog Lưu & thoát / Thoát không lưu / Ở lại. */
+  onRequestExit: (results: SessionResult[]) => void;
   onFinish: (results: SessionResult[]) => void;
   /** Đẩy kết quả dở dang lên cloud (không rời phiên). Trả true khi xong. */
   onSavePartial: (results: SessionResult[]) => Promise<boolean>;
@@ -23,7 +24,7 @@ interface SessionProps {
  * Phiên ôn 1 cột (mirror app laptop): tap để lật nghĩa -> pinyin -> chữ,
  * tới bước chữ mới hiện Nhớ/Quên. Undo quay lại thẻ trước ở trạng thái mở full.
  */
-export function Session({ cards, order, onExit, onFinish, onSavePartial }: SessionProps) {
+export function Session({ cards, order, onRequestExit, onFinish, onSavePartial }: SessionProps) {
   const [idx, setIdx] = useState(0);
   const [step, setStep] = useState(0); // 0: nghĩa, 1: +pinyin, 2: +chữ
   const [results, setResults] = useState<SessionResult[]>([]);
@@ -88,12 +89,10 @@ export function Session({ cards, order, onExit, onFinish, onSavePartial }: Sessi
     setStep(2);
   };
 
-  const quit = () => {
-    if (window.confirm('Thoát phiên học? Kết quả chưa lưu sẽ mất.')) onExit();
-  };
+  const quit = () => onRequestExit(results);
 
   return (
-    <div className="app">
+    <div className="session">
       <div className="topbar">
         <button className="icon-btn" onClick={quit} aria-label="Thoát">
           <Icon name="close" size={18} />

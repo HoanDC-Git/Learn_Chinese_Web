@@ -61,6 +61,43 @@ input {
   overflow: hidden;
 }
 
+/* ---------- Khối phiên học (con của .app, để dialog overlay phủ được) ---------- */
+.session {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* ---------- Dialog phủ (thoát giữa phiên) ---------- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(2, 6, 23, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 360px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: center;
+}
+
+.sheet b {
+  font-size: 16px;
+}
+
 /* ---------- Top bar ---------- */
 .topbar {
   height: 40px;

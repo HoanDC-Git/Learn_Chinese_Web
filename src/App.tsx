@@ -71,6 +71,9 @@ export function App() {
   const [offlineReady, setOfflineReady] = useState(false);
   const [showCfg, setShowCfg] = useState(false);
   const [pushed, setPushed] = useState(false);
+  const [exitPrompt, setExitPrompt] = useState<SessionResult[] | null>(null);
+  const [exitSaving, setExitSaving] = useState(false);
+  const [exitError, setExitError] = useState<string | null>(null);
   const [cloudInfo, setCloudInfo] = useState<{ version: number; count: number } | null>(null);
   const [checking, setChecking] = useState(false);
 
@@ -290,26 +293,82 @@ export function App() {
     setMsg({ kind: 'ok', text: 'Đã lưu cấu hình trên máy này.' });
   };
 
+  // Thoát giữa phiên: chưa ôn thẻ nào thì về thẳng, còn không hiện dialog.
+  const requestExit = (r: SessionResult[]) => {
+    if (r.length === 0) {
+      goHome();
+      return;
+    }
+    setExitError(null);
+    setExitPrompt(r);
+  };
+
   // ---------------- Màn học ----------------
   if (screen === 'session') {
     return (
-      <Session
-        cards={sessionCards}
-        order={order}
-        onExit={goHome}
-        onFinish={(r) => {
-          setResults(r);
-          savePending(r);
-          setPending(r);
-          setPushed(false);
-          setScreen('done');
-          setMsg(null);
-          // Chế độ 2: tự đẩy 1 lần ngay khi xong 1 lượt. Lỗi thì pending
-          // vẫn giữ + nút thủ công bên dưới để lưu lại.
-          pushResults(r);
-        }}
-        onSavePartial={(r) => pushResults(r)}
-      />
+      <div className="app">
+        <Session
+          cards={sessionCards}
+          order={order}
+          onRequestExit={requestExit}
+          onFinish={(r) => {
+            setResults(r);
+            savePending(r);
+            setPending(r);
+            setPushed(false);
+            setScreen('done');
+            setMsg(null);
+            // Chế độ 2: tự đẩy 1 lần ngay khi xong 1 lượt. Lỗi thì pending
+            // vẫn giữ + nút thủ công bên dưới để lưu lại.
+            pushResults(r);
+          }}
+          onSavePartial={(r) => pushResults(r)}
+        />
+        {exitPrompt && (
+          <div className="overlay" onClick={() => setExitPrompt(null)}>
+            <div className="sheet" onClick={(e) => e.stopPropagation()}>
+              <b>Thoát phiên học?</b>
+              <p className="tiny">
+                Đã ôn {exitPrompt.length}/{sessionCards.length} thẻ.
+              </p>
+              {exitError && <div className="msg err">{exitError}</div>}
+              <button
+                className="btn btn-primary"
+                disabled={exitSaving}
+                onClick={async () => {
+                  setExitSaving(true);
+                  setExitError(null);
+                  const ok = await pushResults(exitPrompt);
+                  setExitSaving(false);
+                  if (ok) {
+                    setExitPrompt(null);
+                    goHome();
+                  } else {
+                    setExitError('Lưu lỗi — kiểm tra mạng rồi thử lại, hoặc Thoát không lưu.');
+                  }
+                }}
+              >
+                {exitSaving ? 'Đang lưu…' : 'Lưu & thoát'}
+              </button>
+              <button
+                className="btn btn-ghost"
+                disabled={exitSaving}
+                onClick={() => {
+                  savePending(exitPrompt);
+                  setPending(exitPrompt);
+                  setExitPrompt(null);
+                  goHome();
+                }}
+              >
+                Thoát không lưu
+              </button>
+              <button className="linklike" onClick={() => setExitPrompt(null)}>
+                Ở lại học tiếp
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     );
   }
 
