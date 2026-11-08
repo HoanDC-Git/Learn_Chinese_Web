@@ -248,6 +248,10 @@ export function App() {
           savePending(r);
           setPending(r);
           setScreen('done');
+          setMsg(null);
+          // Chế độ 2: tự đẩy 1 lần ngay khi xong 1 lượt. Lỗi thì pending
+          // vẫn giữ + nút thủ công bên dưới để lưu lại.
+          pushResults(r);
         }}
       />
     );
@@ -277,7 +281,7 @@ export function App() {
           <div className="col">
             {!pushed && (
               <button className="btn btn-primary" disabled={busy} onClick={() => pushResults(results)}>
-                {busy ? 'Đang lưu…' : 'Lưu tiến trình lên cloud'}
+                {busy ? 'Đang lưu…' : 'Lưu lại lên cloud'}
               </button>
             )}
             <button className="btn btn-ghost" onClick={goHome}>
@@ -285,7 +289,7 @@ export function App() {
             </button>
           </div>
           {!pushed && (
-            <p className="tiny">Kể cả thoát ra giữa chừng, kết quả vẫn giữ trên máy để đồng bộ sau.</p>
+            <p className="tiny">Web đã tự lưu 1 lần khi bạn học xong — nút này để lưu lại nếu lúc đó lỗi mạng.</p>
           )}
         </div>
       </div>

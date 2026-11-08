@@ -1,6 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { SessionResult, SyncCard } from '../lib/sync';
 import { calculateNextReview } from '../lib/sync';
+
+// Chữ Hán co theo độ dài để không tràn 2 bên: vừa khít chiều rộng stage,
+// trần 60px (phản hồi: cỡ cũ hơi to), sàn 36px cho cụm rất dài.
+const HANZI_MAX = 60;
+const HANZI_MIN = 36;
 
 interface SessionProps {
   cards: SyncCard[];
@@ -17,6 +22,15 @@ export function Session({ cards, order, onExit, onFinish }: SessionProps) {
   const [idx, setIdx] = useState(0);
   const [step, setStep] = useState(0); // 0: nghĩa, 1: +pinyin, 2: +chữ
   const [results, setResults] = useState<SessionResult[]>([]);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [hanziPx, setHanziPx] = useState(HANZI_MAX);
+
+  // Đo rộng stage trước khi vẽ để co chữ Hán vừa khít, không tràn 2 bên.
+  useLayoutEffect(() => {
+    const w = (stageRef.current?.clientWidth ?? 800) - 32;
+    const n = Math.max(cards[order[idx]]?.hanzi.length ?? 1, 1);
+    setHanziPx(Math.max(HANZI_MIN, Math.min(HANZI_MAX, Math.floor(w / n))));
+  }, [cards, order, idx]);
 
   const total = order.length;
   const card = cards[order[idx]];
@@ -72,10 +86,14 @@ export function Session({ cards, order, onExit, onFinish }: SessionProps) {
         ))}
       </div>
 
-      <div className="stage" onClick={() => setStep((s) => Math.min(s + 1, 2))}>
+      <div ref={stageRef} className="stage" onClick={() => setStep((s) => Math.min(s + 1, 2))}>
         <div className={step === 0 ? 'meaning' : 'meaning dim'}>{card.meaning || 'Chưa có nghĩa'}</div>
         {step >= 1 && <div className="pinyin">{card.pinyin || '—'}</div>}
-        {step >= 2 && <div className="hanzi">{card.hanzi}</div>}
+        {step >= 2 && (
+          <div className="hanzi" style={{ fontSize: hanziPx }}>
+            {card.hanzi}
+          </div>
+        )}
         {step < 2 && <div className="hint">Chạm để {step === 0 ? 'xem pinyin' : 'xem chữ Hán'}</div>}
       </div>
 
