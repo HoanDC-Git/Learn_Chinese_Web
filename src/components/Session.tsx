@@ -100,7 +100,7 @@ export function Session({ cards, order, onRequestExit, onFinish, onSavePartial }
           <Icon name="close" size={18} />
         </button>
         <span className="counter">
-          Còn {remaining} thẻ · Nhớ {done} · Quên {forgotten}
+          Còn {remaining} thẻ · <span className="c-remember">Nhớ {done}</span> · <span className="c-forget">Quên {forgotten}</span>
         </span>
         <button
           className="icon-btn"

@@ -120,6 +120,16 @@ input {
   font-variant-numeric: tabular-nums;
 }
 
+.topbar .counter .c-remember {
+  color: var(--emerald-fg);
+  font-weight: 600;
+}
+
+.topbar .counter .c-forget {
+  color: var(--rose-fg);
+  font-weight: 600;
+}
+
 .icon-btn {
   border: 1px solid var(--line);
   background: var(--bg-soft);
