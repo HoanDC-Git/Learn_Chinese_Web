@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Session } from './components/Session';
+import { Icon } from './components/Icon';
 import { getFile, putFile, ConflictError, type GhConfig } from './lib/github';
 import {
   parseSyncFile,
@@ -321,7 +322,9 @@ export function App() {
           <span className="title">Kết quả</span>
         </div>
         <div className="center">
-          <div className="hero">✓</div>
+          <div className="hero" style={{ color: 'var(--emerald-fg)' }}>
+            <Icon name="check" size={56} label="Hoàn thành" />
+          </div>
           <div className="stats col">
             <div className="stat">
               <b style={{ color: 'var(--emerald-fg)' }}>{remembered}</b>
@@ -355,7 +358,9 @@ export function App() {
   return (
     <div className="app">
       <div className="topbar">
-        <span className="title">📚 Ôn từ tiếng Trung</span>
+        <span className="title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <Icon name="menuBook" size={18} /> Ôn từ tiếng Trung
+        </span>
       </div>
       <div className="center">
         <div className="hero">学</div>
@@ -435,7 +440,7 @@ export function App() {
               title="Cập nhật danh sách từ cloud (không vào phiên học)"
               aria-label="Cập nhật danh sách"
             >
-              🔄
+              <Icon name="sync" size={20} />
             </button>
           </div>
           {offlineReady && (

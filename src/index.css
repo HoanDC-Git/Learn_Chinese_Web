@@ -107,6 +107,30 @@ input {
   transform: scale(0.95);
 }
 
+/* ---------- SVG icons (Material Symbols, bundle local) ---------- */
+.ic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.ic svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.ic.spin {
+  animation: ic-spin 1s linear infinite;
+}
+
+@keyframes ic-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* ---------- Progress segments ---------- */
 .segments {
   flex: none;

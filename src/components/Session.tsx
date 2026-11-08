@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { SessionResult, SyncCard } from '../lib/sync';
 import { calculateNextReview } from '../lib/sync';
+import { Icon } from './Icon';
 
 // Chữ Hán co theo độ dài để không tràn 2 bên: vừa khít chiều rộng stage,
 // trần 60px, sàn 36px (vòng hiệu chỉnh có thể xuống 28px cho cụm rất dài).
@@ -95,7 +96,7 @@ export function Session({ cards, order, onExit, onFinish, onSavePartial }: Sessi
     <div className="app">
       <div className="topbar">
         <button className="icon-btn" onClick={quit} aria-label="Thoát">
-          ✕
+          <Icon name="close" size={18} />
         </button>
         <span className="counter">
           Thẻ {Math.min(idx + 1, total)}/{total} · {done} nhớ
@@ -108,10 +109,18 @@ export function Session({ cards, order, onExit, onFinish, onSavePartial }: Sessi
           title={saveTick === 'done' ? 'Đã lưu ✓' : saveTick === 'error' ? 'Lưu lỗi, bấm lại' : 'Lưu tiến trình lên cloud'}
           style={saveTick === 'done' ? { borderColor: 'var(--emerald-line)', color: 'var(--emerald-fg)' } : saveTick === 'error' ? { borderColor: 'var(--rose-line)', color: 'var(--rose-fg)' } : undefined}
         >
-          {saveTick === 'saving' ? '…' : saveTick === 'done' ? '✓' : saveTick === 'error' ? '!' : '☁'}
+          {saveTick === 'saving' ? (
+            <Icon name="sync" size={18} spin />
+          ) : saveTick === 'done' ? (
+            <Icon name="cloudDone" size={18} />
+          ) : saveTick === 'error' ? (
+            <Icon name="cloudOff" size={18} />
+          ) : (
+            <Icon name="cloudUpload" size={18} />
+          )}
         </button>
         <button className="icon-btn" onClick={undo} disabled={!canUndo} aria-label="Hoàn tác">
-          ↩
+          <Icon name="undo" size={18} />
         </button>
       </div>
 
