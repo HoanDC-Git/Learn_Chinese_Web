@@ -365,6 +365,50 @@ input {
   line-height: 1.5;
 }
 
+/* ---------- Phạm vi ôn: Hôm nay / 3 ngày ---------- */
+.scope {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 4px;
+}
+
+.scope button {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  min-height: 36px;
+  cursor: pointer;
+}
+
+.scope button.on {
+  background: var(--bg-softer);
+  color: var(--text);
+}
+
+/* ---------- Ép landscape khi viewport dọc trên thiết bị cảm ứng ----------
+   Dành cho máy khóa xoay dọc: xoay cả app 90°, lấy 100dvh làm rộng
+   và 100dvw làm cao. Kết hợp với manifest orientation + Orientation API
+   (PWA standalone) để phủ mọi trường hợp. */
+@media (orientation: portrait) and (pointer: coarse) {
+  .app {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 100dvh;
+    height: 100dvw;
+    max-width: none;
+    margin: 0;
+    transform: translate(-50%, -50%) rotate(90deg);
+  }
+}
+
 .linklike {
   background: none;
   border: none;

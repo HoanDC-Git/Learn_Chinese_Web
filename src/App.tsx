@@ -1,11 +1,14 @@
 import { useState } from 'react';
-import { Session, type CardResult } from './components/Session';
+import { Session } from './components/Session';
 import { getFile, putFile, ConflictError, type GhConfig } from './lib/github';
 import {
   parseSyncFile,
   nextVersion,
   shuffled,
+  isDueToday,
   UPDATED_BY_PHONE,
+  type SessionResult,
+  type SyncCard,
   type SyncFile,
 } from './lib/sync';
 import {
@@ -14,9 +17,17 @@ import {
   clearConfig,
   loadSnapshot,
   saveSnapshot,
+  savePending,
+  loadPending,
+  clearPending,
 } from './lib/storage';
 
 type Screen = 'home' | 'session' | 'done';
+type Scope = 'today' | 'all';
+
+const DEFAULT_OWNER = 'HoanDC-Git';
+const DEFAULT_REPO = 'LearnChineseSync';
+const DEFAULT_PATH = 'sync.json';
 
 function fmtVersion(v: number): string {
   if (!v) return '—';
@@ -28,26 +39,67 @@ function fmtVersion(v: number): string {
   });
 }
 
+/** Ép màn ngang (best-effort): PWA standalone thì manifest lo, tab thường thì thử API. */
+function lockLandscape() {
+  try {
+    screen.orientation.lock('landscape').catch(() => {});
+  } catch {
+    /* CSS fallback tự xoay khi viewport dọc */
+  }
+}
+
+function unlockOrientation() {
+  try {
+    screen.orientation.unlock();
+  } catch {
+    /* bỏ qua */
+  }
+}
+
 export function App() {
   const [cfg, setCfg] = useState<GhConfig | null>(() => loadConfig());
   const [snapshot, setSnapshot] = useState<SyncFile | null>(() => loadSnapshot()?.file ?? null);
   const [screen, setScreen] = useState<Screen>('home');
+  const [sessionCards, setSessionCards] = useState<SyncCard[]>([]);
   const [order, setOrder] = useState<number[]>([]);
-  const [results, setResults] = useState<CardResult[]>([]);
+  const [results, setResults] = useState<SessionResult[]>([]);
+  const [pending, setPending] = useState<SessionResult[] | null>(() => loadPending()?.results ?? null);
+  const [scope, setScope] = useState<Scope>('today');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [offlineReady, setOfflineReady] = useState(false);
   const [showCfg, setShowCfg] = useState(false);
   const [pushed, setPushed] = useState(false);
 
-  // Form cấu hình
-  const [fOwner, setFOwner] = useState(cfg?.owner ?? '');
-  const [fRepo, setFRepo] = useState(cfg?.repo ?? '');
-  const [fPath, setFPath] = useState(cfg?.path ?? 'sync.json');
+  // Form cấu hình — owner/repo để sẵn, bấm vào sửa khi cần.
+  const [fOwner, setFOwner] = useState(cfg?.owner ?? DEFAULT_OWNER);
+  const [fRepo, setFRepo] = useState(cfg?.repo ?? DEFAULT_REPO);
+  const [fPath, setFPath] = useState(cfg?.path ?? DEFAULT_PATH);
   const [fToken, setFToken] = useState('');
 
+  const todayCount = snapshot ? snapshot.cards.filter(isDueToday).length : 0;
+
+  const goHome = () => {
+    unlockOrientation();
+    setScreen('home');
+    setMsg(null);
+  };
+
   const startSession = (file: SyncFile) => {
-    setOrder(shuffled(file.cards.map((_, i) => i)));
+    const list = scope === 'today' ? file.cards.filter(isDueToday) : file.cards;
+    if (list.length === 0) {
+      setMsg({
+        kind: 'err',
+        text:
+          scope === 'today'
+            ? 'Hôm nay không còn từ nào đến hạn. Chuyển sang “3 ngày” để ôn trước.'
+            : 'Bản này không còn thẻ nào.',
+      });
+      return;
+    }
+    lockLandscape();
+    setSessionCards(list);
+    setOrder(shuffled(list.map((_, i) => i)));
     setResults([]);
     setPushed(false);
     setMsg(null);
@@ -61,6 +113,7 @@ export function App() {
       setShowCfg(true);
       return;
     }
+    lockLandscape();
     setBusy(true);
     setMsg(null);
     setOfflineReady(false);
@@ -94,61 +147,75 @@ export function App() {
     startSession(cached.file);
   };
 
-  /** Nút Lưu tiến trình: merge kết quả vào bản cloud MỚI NHẤT rồi đẩy (chống mất dữ liệu). */
-  const pushResults = async () => {
-    if (!cfg || !snapshot) return;
+  /**
+   * Đẩy kết quả lên cloud: merge vào bản cloud MỚI NHẤT (lấy sha tươi) rồi PUT.
+   * Gặp Conflict thì tải-merge-đẩy lại đúng 1 lần. Xong thì xóa pending.
+   */
+  const pushResults = async (res: SessionResult[]) => {
+    if (!cfg) return;
+    if (res.length === 0) {
+      setMsg({ kind: 'err', text: 'Chưa có kết quả nào để lưu.' });
+      return;
+    }
     setBusy(true);
     setMsg(null);
     try {
-      // Lấy sha + bản mới nhất để merge (laptop có thể đã đẩy sau lúc ta học).
       const remote = await getFile(cfg);
-      const base: SyncFile = remote ? parseSyncFile(remote.text) : snapshot;
-      const resMap = new Map(results.map((r) => [r.id, r]));
-      const mergedCards = base.cards.map((c) => {
-        const r = resMap.get(c.id);
-        return r
-          ? { ...c, level: r.new_level, next_review: r.next_review, remembered: r.remembered }
-          : { ...c, remembered: null };
-      });
-      const nowSec = Math.floor(Date.now() / 1000);
-      const build = (version: number): SyncFile => ({
-        version,
-        updated_by: UPDATED_BY_PHONE,
-        updated_at: new Date().toISOString(),
-        cards: mergedCards,
-      });
-
-      let text = JSON.stringify(build(nextVersion(nowSec, base.version)));
-      try {
-        await putFile(cfg, text, remote?.sha ?? null, `sync: phone results v${nextVersion(nowSec, base.version)}`);
-      } catch (e) {
-        if (!(e instanceof ConflictError)) throw e;
-        // Conflict: tải lại, merge lại, đẩy 1 lần nữa với sha mới.
-        const fresh = await getFile(cfg);
-        if (!fresh) throw new Error('File cloud biến mất, hãy thử lại.');
-        const freshFile = parseSyncFile(fresh.text);
-        const resMap2 = new Map(results.map((r) => [r.id, r]));
-        const merged2 = freshFile.cards.map((c) => {
-          const r = resMap2.get(c.id);
+      const base: SyncFile | null = remote ? parseSyncFile(remote.text) : loadSnapshot()?.file ?? null;
+      if (!base) throw new Error('Không có bản nào để lưu lên. Hãy Học bài trước.');
+      const resMap = new Map(res.map((r) => [r.id, r]));
+      const merge = (cards: SyncCard[]) =>
+        cards.map((c) => {
+          const r = resMap.get(c.id);
           return r
             ? { ...c, level: r.new_level, next_review: r.next_review, remembered: r.remembered }
             : { ...c, remembered: null };
         });
-        const v2 = nextVersion(Math.floor(Date.now() / 1000), freshFile.version);
-        text = JSON.stringify({ version: v2, updated_by: UPDATED_BY_PHONE, updated_at: new Date().toISOString(), cards: merged2 });
-        await putFile(cfg, text, fresh.sha, `sync: phone results v${v2} (retry)`);
-      }
 
-      const saved = JSON.parse(text) as SyncFile;
-      saveSnapshot(saved);
-      setSnapshot(saved);
-      setPushed(true);
-      setMsg({ kind: 'ok', text: `Đã lưu ${results.length} kết quả lên cloud (bản ${fmtVersion(saved.version)}). Mở app laptop để kéo về.` });
+      const nowSec = Math.floor(Date.now() / 1000);
+      const v1 = nextVersion(nowSec, base.version);
+      const text1 = JSON.stringify({
+        version: v1,
+        updated_by: UPDATED_BY_PHONE,
+        updated_at: new Date().toISOString(),
+        cards: merge(base.cards),
+      });
+      try {
+        await putFile(cfg, text1, remote?.sha ?? null, `sync: phone results v${v1}`);
+        finishPush(text1);
+      } catch (e) {
+        if (!(e instanceof ConflictError)) throw e;
+        const fresh = await getFile(cfg);
+        if (!fresh) throw new Error('File cloud biến mất, hãy thử lại.');
+        const freshFile = parseSyncFile(fresh.text);
+        const v2 = nextVersion(Math.floor(Date.now() / 1000), freshFile.version);
+        const text2 = JSON.stringify({
+          version: v2,
+          updated_by: UPDATED_BY_PHONE,
+          updated_at: new Date().toISOString(),
+          cards: merge(freshFile.cards),
+        });
+        await putFile(cfg, text2, fresh.sha, `sync: phone results v${v2} (retry)`);
+        finishPush(text2);
+      }
     } catch (e) {
       setMsg({ kind: 'err', text: e instanceof Error ? e.message : 'Lưu thất bại.' });
     } finally {
       setBusy(false);
     }
+  };
+
+  const finishPush = (text: string) => {
+    const saved = JSON.parse(text) as SyncFile;
+    saveSnapshot(saved);
+    setSnapshot(saved);
+    clearPending();
+    setPending(null);
+    setPushed(true);
+    setMsg({
+      kind: 'ok',
+      text: `Đã lưu lên cloud (bản ${fmtVersion(saved.version)}). Mở app laptop để kéo về.`,
+    });
   };
 
   const saveCfgForm = () => {
@@ -162,7 +229,7 @@ export function App() {
       setMsg({ kind: 'err', text: 'Lần đầu phải nhập token.' });
       return;
     }
-    const c: GhConfig = { owner: fOwner.trim(), repo: fRepo.trim(), path: fPath.trim() || 'sync.json', token };
+    const c: GhConfig = { owner: fOwner.trim(), repo: fRepo.trim(), path: fPath.trim() || DEFAULT_PATH, token };
     saveConfig(c);
     setCfg(c);
     setFToken('');
@@ -170,14 +237,16 @@ export function App() {
   };
 
   // ---------------- Màn học ----------------
-  if (screen === 'session' && snapshot) {
+  if (screen === 'session') {
     return (
       <Session
-        cards={snapshot.cards}
+        cards={sessionCards}
         order={order}
-        onExit={() => setScreen('home')}
+        onExit={goHome}
         onFinish={(r) => {
           setResults(r);
+          savePending(r);
+          setPending(r);
           setScreen('done');
         }}
       />
@@ -207,14 +276,17 @@ export function App() {
           {msg && <div className={`msg ${msg.kind}`}>{msg.text}</div>}
           <div className="col">
             {!pushed && (
-              <button className="btn btn-primary" disabled={busy} onClick={pushResults}>
+              <button className="btn btn-primary" disabled={busy} onClick={() => pushResults(results)}>
                 {busy ? 'Đang lưu…' : 'Lưu tiến trình lên cloud'}
               </button>
             )}
-            <button className="btn btn-ghost" onClick={() => { setScreen('home'); setMsg(null); }}>
+            <button className="btn btn-ghost" onClick={goHome}>
               Về trang chủ
             </button>
           </div>
+          {!pushed && (
+            <p className="tiny">Kể cả thoát ra giữa chừng, kết quả vẫn giữ trên máy để đồng bộ sau.</p>
+          )}
         </div>
       </div>
     );
@@ -237,8 +309,40 @@ export function App() {
             'Chưa có bản lưu nào trên máy này.'
           )}
         </div>
+
+        {pending && pending.length > 0 && (
+          <div className="msg err col">
+            Còn <b>{pending.length} kết quả chưa lưu</b> lên cloud.
+            <button
+              className="btn btn-primary"
+              style={{ minHeight: 48, marginTop: 8 }}
+              disabled={busy || !cfg}
+              onClick={() => pushResults(pending)}
+            >
+              {busy ? 'Đang lưu…' : 'Đồng bộ ngay'}
+            </button>
+          </div>
+        )}
+
         {msg && <div className={`msg ${msg.kind} col`}>{msg.text}</div>}
+
         <div className="col">
+          {snapshot && snapshot.cards.length > 0 && (
+            <div className="scope" role="group" aria-label="Phạm vi ôn">
+              <button
+                className={scope === 'today' ? 'on' : ''}
+                onClick={() => setScope('today')}
+              >
+                Hôm nay ({todayCount})
+              </button>
+              <button
+                className={scope === 'all' ? 'on' : ''}
+                onClick={() => setScope('all')}
+              >
+                3 ngày ({snapshot.cards.length})
+              </button>
+            </div>
+          )}
           <button className="btn btn-primary" disabled={busy} onClick={pullAndStart}>
             {busy ? 'Đang tải…' : 'Học bài'}
           </button>
@@ -251,21 +355,22 @@ export function App() {
             {showCfg ? 'Ẩn cấu hình ▲' : 'Cấu hình repo & token ▼'}
           </button>
         </div>
+
         {showCfg && (
           <div className="config">
             <div className="row">
               <label>
-                Owner
-                <input value={fOwner} onChange={(e) => setFOwner(e.target.value)} placeholder="HoanDC-Git" autoComplete="off" />
+                Owner (bấm để sửa)
+                <input value={fOwner} onChange={(e) => setFOwner(e.target.value)} autoComplete="off" />
               </label>
               <label>
-                Repo sync (private)
-                <input value={fRepo} onChange={(e) => setFRepo(e.target.value)} placeholder="LearnChineseSync" autoComplete="off" />
+                Repo sync private (bấm để sửa)
+                <input value={fRepo} onChange={(e) => setFRepo(e.target.value)} autoComplete="off" />
               </label>
             </div>
             <label>
               Đường dẫn file
-              <input value={fPath} onChange={(e) => setFPath(e.target.value)} placeholder="sync.json" autoComplete="off" />
+              <input value={fPath} onChange={(e) => setFPath(e.target.value)} autoComplete="off" />
             </label>
             <label>
               Token (PAT quyền Contents)

@@ -1,19 +1,12 @@
 import { useMemo, useState } from 'react';
-import type { SyncCard } from '../lib/sync';
+import type { SessionResult, SyncCard } from '../lib/sync';
 import { calculateNextReview } from '../lib/sync';
-
-export interface CardResult {
-  id: number;
-  remembered: boolean;
-  new_level: number;
-  next_review: string;
-}
 
 interface SessionProps {
   cards: SyncCard[];
   order: number[]; // index vào cards, đã shuffle
   onExit: () => void;
-  onFinish: (results: CardResult[]) => void;
+  onFinish: (results: SessionResult[]) => void;
 }
 
 /**
@@ -23,7 +16,7 @@ interface SessionProps {
 export function Session({ cards, order, onExit, onFinish }: SessionProps) {
   const [idx, setIdx] = useState(0);
   const [step, setStep] = useState(0); // 0: nghĩa, 1: +pinyin, 2: +chữ
-  const [results, setResults] = useState<CardResult[]>([]);
+  const [results, setResults] = useState<SessionResult[]>([]);
 
   const total = order.length;
   const card = cards[order[idx]];

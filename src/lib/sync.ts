@@ -28,6 +28,28 @@ export interface SrsResult {
   days_interval: number;
 }
 
+/** Kết quả 1 thẻ sau phiên ôn (dùng chung Session/App/storage). */
+export interface SessionResult {
+  id: number;
+  remembered: boolean;
+  new_level: number;
+  next_review: string;
+}
+
+/** Cuối ngày hôm nay (giờ local) — mốc lọc "từ đến hạn hôm nay". */
+export function endOfToday(): Date {
+  const d = new Date();
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+/** Thẻ mới (chưa có hẹn) hoặc hẹn không quá cuối hôm nay. */
+export function isDueToday(c: SyncCard): boolean {
+  if (!c.next_review) return true;
+  const t = new Date(c.next_review).getTime();
+  return !Number.isNaN(t) && t <= endOfToday().getTime();
+}
+
 function daysInterval(level: number): number {
   switch (level) {
     case 0: return 0;
