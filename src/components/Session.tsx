@@ -67,6 +67,8 @@ export function Session({ cards, order, onRequestExit, onFinish, onSavePartial }
     () => results.filter((r) => r.remembered).length,
     [results],
   );
+  const forgotten = results.length - done;
+  const remaining = total - results.length;
 
   if (!card) return null;
 
@@ -98,7 +100,7 @@ export function Session({ cards, order, onRequestExit, onFinish, onSavePartial }
           <Icon name="close" size={18} />
         </button>
         <span className="counter">
-          Thẻ {Math.min(idx + 1, total)}/{total} · {done} nhớ
+          Còn {remaining} thẻ · Nhớ {done} · Quên {forgotten}
         </span>
         <button
           className="icon-btn"
