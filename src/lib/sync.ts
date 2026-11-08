@@ -96,6 +96,22 @@ export function parseSyncFile(text: string): SyncFile {
   return f;
 }
 
+/** Nhãn độ thuộc theo level SRS — copy từ app laptop (getMasteryLabel). */
+export function getMasteryLabel(level: number): string {
+  const labels: Record<number, string> = {
+    0: 'Làm quen',
+    1: 'Sơ cấp',
+    2: 'Cơ bản',
+    3: 'Trung cấp',
+    4: 'Tiến bộ',
+    5: 'Cao cấp',
+    6: 'Thành thạo',
+    7: 'Điêu luyện',
+    8: 'Tinh thông',
+  };
+  return labels[level] ?? `Lvl ${level}`;
+}
+
 /** Xáo trộn thứ tự học (Fisher–Yates), không đột biến mảng gốc. */
 export function shuffled<T>(arr: T[]): T[] {
   const a = [...arr];

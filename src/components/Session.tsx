@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { SessionResult, SyncCard } from '../lib/sync';
-import { calculateNextReview } from '../lib/sync';
+import { calculateNextReview, getMasteryLabel } from '../lib/sync';
 import { Icon } from './Icon';
 
 // Chữ Hán co theo độ dài để không tràn 2 bên: vừa khít chiều rộng stage,
@@ -132,6 +132,7 @@ export function Session({ cards, order, onRequestExit, onFinish, onSavePartial }
       </div>
 
       <div ref={stageRef} className="stage" onClick={() => setStep((s) => Math.min(s + 1, 2))}>
+        <div className={`lvl lvl-${card.level}`}>Lv{card.level} · {getMasteryLabel(card.level)}</div>
         <div className={step === 0 ? 'meaning' : 'meaning dim'}>{card.meaning || 'Chưa có nghĩa'}</div>
         {step >= 1 && <div className="pinyin">{card.pinyin || '—'}</div>}
         {step >= 2 && (
