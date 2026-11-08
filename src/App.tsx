@@ -151,11 +151,11 @@ export function App() {
    * Đẩy kết quả lên cloud: merge vào bản cloud MỚI NHẤT (lấy sha tươi) rồi PUT.
    * Gặp Conflict thì tải-merge-đẩy lại đúng 1 lần. Xong thì xóa pending.
    */
-  const pushResults = async (res: SessionResult[]) => {
-    if (!cfg) return;
+  const pushResults = async (res: SessionResult[]): Promise<boolean> => {
+    if (!cfg) return false;
     if (res.length === 0) {
       setMsg({ kind: 'err', text: 'Chưa có kết quả nào để lưu.' });
-      return;
+      return false;
     }
     setBusy(true);
     setMsg(null);
@@ -198,8 +198,10 @@ export function App() {
         await putFile(cfg, text2, fresh.sha, `sync: phone results v${v2} (retry)`);
         finishPush(text2);
       }
+      return true;
     } catch (e) {
       setMsg({ kind: 'err', text: e instanceof Error ? e.message : 'Lưu thất bại.' });
+      return false;
     } finally {
       setBusy(false);
     }
@@ -247,12 +249,14 @@ export function App() {
           setResults(r);
           savePending(r);
           setPending(r);
+          setPushed(false);
           setScreen('done');
           setMsg(null);
           // Chế độ 2: tự đẩy 1 lần ngay khi xong 1 lượt. Lỗi thì pending
           // vẫn giữ + nút thủ công bên dưới để lưu lại.
           pushResults(r);
         }}
+        onSavePartial={(r) => pushResults(r)}
       />
     );
   }
