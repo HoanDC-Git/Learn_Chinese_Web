@@ -326,6 +326,16 @@ input {
   color: var(--muted);
 }
 
+/* ---------- Hàng nút kép (Học bài + Cập nhật) ---------- */
+.row2 {
+  display: flex;
+  gap: 8px;
+}
+
+.row2 .grow {
+  flex: 1;
+}
+
 /* ---------- Config form ---------- */
 .config {
   width: 100%;

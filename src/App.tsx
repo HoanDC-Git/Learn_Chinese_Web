@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Session } from './components/Session';
 import { getFile, putFile, ConflictError, type GhConfig } from './lib/github';
 import {
@@ -70,6 +70,8 @@ export function App() {
   const [offlineReady, setOfflineReady] = useState(false);
   const [showCfg, setShowCfg] = useState(false);
   const [pushed, setPushed] = useState(false);
+  const [cloudInfo, setCloudInfo] = useState<{ version: number; count: number } | null>(null);
+  const [checking, setChecking] = useState(false);
 
   // Form cấu hình — owner/repo để sẵn, bấm vào sửa khi cần.
   const [fOwner, setFOwner] = useState(cfg?.owner ?? DEFAULT_OWNER);
@@ -106,14 +108,40 @@ export function App() {
     setScreen('session');
   };
 
-  /** Nút Học bài: kéo bản mới nhất từ cloud (có mạng). */
-  const pullAndStart = async () => {
+  /** Kiểm tra nhẹ cloud mỗi khi về trang chủ: chỉ đọc version + số thẻ để báo bản mới. */
+  const checkCloud = async () => {
+    if (!cfg) {
+      setCloudInfo(null);
+      return;
+    }
+    setChecking(true);
+    try {
+      const remote = await getFile(cfg);
+      if (remote) {
+        const f = parseSyncFile(remote.text);
+        setCloudInfo({ version: f.version, count: f.cards.length });
+      } else {
+        setCloudInfo(null);
+      }
+    } catch {
+      /* im lặng — nút Cập nhật thủ công sẽ báo lỗi cụ thể */
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  useEffect(() => {
+    if (screen === 'home') checkCloud();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, cfg]);
+
+  /** Kéo bản mới nhất từ cloud về máy (dùng chung cho Học bài và Cập nhật). */
+  const pullLatest = async (): Promise<SyncFile | null> => {
     if (!cfg) {
       setMsg({ kind: 'err', text: 'Chưa cấu hình repo — mở Cấu hình bên dưới.' });
       setShowCfg(true);
-      return;
+      return null;
     }
-    lockLandscape();
     setBusy(true);
     setMsg(null);
     setOfflineReady(false);
@@ -121,22 +149,45 @@ export function App() {
       const remote = await getFile(cfg);
       if (!remote) {
         setMsg({ kind: 'err', text: 'Cloud chưa có file sync. Mở app laptop và ấn Đồng bộ ngay trước.' });
-        return;
+        return null;
       }
       const file = parseSyncFile(remote.text);
-      if (file.cards.length === 0) {
-        setMsg({ kind: 'err', text: 'Bản trên cloud không còn thẻ nào đến hạn. Tuyệt vời!' });
-        return;
-      }
       saveSnapshot(file);
       setSnapshot(file);
-      startSession(file);
+      setCloudInfo({ version: file.version, count: file.cards.length });
+      return file;
     } catch (e) {
       const cached = loadSnapshot();
       setMsg({ kind: 'err', text: e instanceof Error ? e.message : 'Tải thất bại.' });
       if (cached && cached.file.cards.length > 0) setOfflineReady(true);
+      return null;
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** Nút Học bài: kéo bản mới nhất rồi vào phiên. */
+  const pullAndStart = async () => {
+    if (!cfg) {
+      setMsg({ kind: 'err', text: 'Chưa cấu hình repo — mở Cấu hình bên dưới.' });
+      setShowCfg(true);
+      return;
+    }
+    lockLandscape();
+    const file = await pullLatest();
+    if (!file) return;
+    if (file.cards.length === 0) {
+      setMsg({ kind: 'err', text: 'Bản trên cloud không còn thẻ nào đến hạn. Tuyệt vời!' });
+      return;
+    }
+    startSession(file);
+  };
+
+  /** Nút Cập nhật: chỉ refresh danh sách, không vào phiên học. */
+  const refreshOnly = async () => {
+    const file = await pullLatest();
+    if (file) {
+      setMsg({ kind: 'ok', text: `Đã cập nhật: ${file.cards.length} thẻ (bản ${fmtVersion(file.version)}).` });
     }
   };
 
@@ -311,12 +362,33 @@ export function App() {
         <div className="sub">
           {snapshot ? (
             <>
-              Bản đã lưu: <b>{snapshot.cards.length} thẻ</b> · phiên bản {fmtVersion(snapshot.version)}
+              Bản đã lưu: <b>{snapshot.cards.length} thẻ</b> · bản {fmtVersion(snapshot.version)}
             </>
           ) : (
             'Chưa có bản lưu nào trên máy này.'
           )}
         </div>
+        <div className="sub">
+          {checking
+            ? 'Đang kiểm tra cloud…'
+            : cloudInfo
+              ? <>☁ Cloud: <b>{cloudInfo.count} thẻ</b> · bản {fmtVersion(cloudInfo.version)}</>
+              : cfg ? 'Chưa kiểm tra được cloud — bấm Cập nhật.' : null}
+        </div>
+
+        {cloudInfo && (!snapshot || cloudInfo.version > snapshot.version) && (
+          <div className="msg col">
+            Cloud có bản mới hơn bản trên máy ({cloudInfo.count} thẻ). Cập nhật rồi hãy học.
+            <button
+              className="btn btn-primary"
+              style={{ minHeight: 48, marginTop: 8 }}
+              disabled={busy}
+              onClick={refreshOnly}
+            >
+              {busy ? 'Đang tải…' : 'Cập nhật ngay'}
+            </button>
+          </div>
+        )}
 
         {pending && pending.length > 0 && (
           <div className="msg err col">
@@ -351,9 +423,21 @@ export function App() {
               </button>
             </div>
           )}
-          <button className="btn btn-primary" disabled={busy} onClick={pullAndStart}>
-            {busy ? 'Đang tải…' : 'Học bài'}
-          </button>
+          <div className="row2">
+            <button className="btn btn-primary grow" disabled={busy} onClick={pullAndStart}>
+              {busy ? 'Đang tải…' : 'Học bài'}
+            </button>
+            <button
+              className="btn"
+              style={{ minWidth: 56 }}
+              disabled={busy || !cfg}
+              onClick={refreshOnly}
+              title="Cập nhật danh sách từ cloud (không vào phiên học)"
+              aria-label="Cập nhật danh sách"
+            >
+              🔄
+            </button>
+          </div>
           {offlineReady && (
             <button className="btn btn-ghost" onClick={startOffline}>
               Học với bản đã lưu (không mạng)
