@@ -1,6 +1,8 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { SessionResult, SyncCard } from '../lib/sync';
 import { calculateNextReview, getMasteryLabel } from '../lib/sync';
+import { stopSpeech } from '../lib/tts';
+import { useTts } from '../lib/useTts';
 import { Icon } from './Icon';
 
 // Chữ Hán co theo độ dài để không tràn 2 bên: vừa khít chiều rộng stage,
@@ -31,6 +33,10 @@ export function Session({ cards, order, onRequestExit, onFinish, onSavePartial }
   const stageRef = useRef<HTMLDivElement>(null);
   const hanziRef = useRef<HTMLDivElement>(null);
   const [hanziPx, setHanziPx] = useState(HANZI_MAX);
+  const tts = useTts();
+
+  // Đổi thẻ thì dừng audio đang đọc.
+  useEffect(() => () => stopSpeech(), [idx]);
 
   // Lượt 1 (trước khi vẽ): ước cỡ từ độ dài, đã bù tracking + biên font.
   useLayoutEffect(() => {
@@ -132,6 +138,17 @@ export function Session({ cards, order, onRequestExit, onFinish, onSavePartial }
       </div>
 
       <div ref={stageRef} className="stage" onClick={() => setStep((s) => Math.min(s + 1, 2))}>
+        <button
+          className={'icon-btn speak-btn' + (tts.status !== 'idle' ? ' active' : '')}
+          onClick={(e) => {
+            e.stopPropagation();
+            void tts.speak(card.hanzi);
+          }}
+          aria-label="Nghe phát âm"
+          title="Nghe phát âm"
+        >
+          <Icon name="volumeUp" size={18} />
+        </button>
         <div className={`lvl lvl-${card.level}`}>Lv{card.level} · {getMasteryLabel(card.level)}</div>
         <div className={step === 0 ? 'meaning' : 'meaning dim'}>{card.meaning || 'Chưa có nghĩa'}</div>
         {step >= 1 && <div className="pinyin">{card.pinyin || '—'}</div>}
@@ -141,6 +158,11 @@ export function Session({ cards, order, onRequestExit, onFinish, onSavePartial }
           </div>
         )}
         {step < 2 && <div className="hint">Chạm để {step === 0 ? 'xem pinyin' : 'xem chữ Hán'}</div>}
+        {tts.error && (
+          <div className="tts-error" role="alert">
+            {tts.error}
+          </div>
+        )}
       </div>
 
       <div className="actions">

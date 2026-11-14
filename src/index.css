@@ -200,6 +200,7 @@ input {
 
 /* ---------- Card stage (tap to reveal) ---------- */
 .stage {
+  position: relative;
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
@@ -210,6 +211,39 @@ input {
   padding: 2px 16px;
   cursor: pointer;
   overflow: hidden;
+}
+
+/* Nút loa nằm góc phải stage, không đẩy layout chữ Hán. */
+.stage .speak-btn {
+  position: absolute;
+  top: 0;
+  right: 8px;
+  width: 36px;
+  min-width: 36px;
+  height: 32px;
+  padding: 0;
+  border-radius: 999px;
+  color: var(--muted);
+  z-index: 1;
+}
+
+.stage .speak-btn.active {
+  color: var(--accent);
+  border-color: #4338ca;
+}
+
+.stage .tts-error {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 4px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--rose-fg);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .stage .meaning {

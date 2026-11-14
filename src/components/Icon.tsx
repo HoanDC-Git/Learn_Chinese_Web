@@ -8,6 +8,7 @@ import cloudOffSvg from '../assets/icons/cloud_off.svg?raw';
 import syncSvg from '../assets/icons/sync.svg?raw';
 import menuBookSvg from '../assets/icons/menu_book.svg?raw';
 import checkSvg from '../assets/icons/check.svg?raw';
+import volumeUpSvg from '../assets/icons/volume_up.svg?raw';
 
 export type IconName =
   | 'close'
@@ -17,7 +18,8 @@ export type IconName =
   | 'cloudOff'
   | 'sync'
   | 'menuBook'
-  | 'check';
+  | 'check'
+  | 'volumeUp';
 
 const MAP: Record<IconName, string> = {
   close: closeSvg,
@@ -28,6 +30,7 @@ const MAP: Record<IconName, string> = {
   sync: syncSvg,
   menuBook: menuBookSvg,
   check: checkSvg,
+  volumeUp: volumeUpSvg,
 };
 
 export function Icon({
